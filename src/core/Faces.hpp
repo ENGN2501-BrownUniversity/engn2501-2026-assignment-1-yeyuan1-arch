@@ -89,8 +89,10 @@ public:
 
 private:
 
-  // TODO
-
+  private:
+  int _nV;
+  vector<int> _coordIndex;
+  vector<int> _faceStart;
 };
 
 #endif /* _FACES_HPP_ */
