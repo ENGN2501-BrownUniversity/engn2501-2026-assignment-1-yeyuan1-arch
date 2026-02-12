@@ -37,24 +37,30 @@
 #ifndef _LOADER_STL_HPP_
 #define _LOADER_STL_HPP_
 
+#include <vector>
 #include "Loader.hpp"
-#include "Tokenizer.hpp"
-
+#include "TokenizerFile.hpp"
 #include "wrl/Node.hpp"
 
 class LoaderStl : public Loader {
 
 private:
 
-  const static char* _ext;
+    const static char* _ext;
+
+    // Added the private helper function declaration
+    bool _loadFace(TokenizerFile& tkn,
+                   std::vector<float>& coord,
+                   std::vector<float>& normal,
+                   std::vector<int>& coordIndex);
 
 public:
 
-  LoaderStl()  {};
-  ~LoaderStl() {};
+    LoaderStl()  {};
+    ~LoaderStl() {};
 
-  bool  load(const char* filename, SceneGraph& wrl);
-  const char* ext() const { return _ext; }
+    bool  load(const char* filename, SceneGraph& wrl);
+    const char* ext() const { return _ext; }
 
 };
 

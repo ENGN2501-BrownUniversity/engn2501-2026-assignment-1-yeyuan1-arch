@@ -35,6 +35,7 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <stdio.h>
+#include <stdlib.h> // for atof
 #include "TokenizerFile.hpp"
 #include "LoaderStl.hpp"
 #include "StrException.hpp"
@@ -44,76 +45,114 @@
 #include "wrl/Material.hpp"
 #include "wrl/IndexedFaceSet.hpp"
 
-// reference
-// https://en.wikipedia.org/wiki/STL_(file_format)
-
 const char* LoaderStl::_ext = "stl";
 
 bool LoaderStl::load(const char* filename, SceneGraph& wrl) {
-  bool success = false;
+    bool success = false;
 
-  // clear the scene graph
-  wrl.clear();
-  wrl.setUrl("");
+    // clear the scene graph
+    wrl.clear();
+    wrl.setUrl("");
 
-  FILE* fp = (FILE*)0;
-  try {
+    FILE* fp = (FILE*)0;
+    try {
 
-    // open the file
-    if(filename==(char*)0) throw new StrException("filename==null");
-    fp = fopen(filename,"r");
-    if(fp==(FILE*)0) throw new StrException("fp==(FILE*)0");
+        // open the file
+        if(filename==(char*)0) throw new StrException("filename==null");
+        fp = fopen(filename,"r");
+        if(fp==(FILE*)0) throw new StrException("fp==(FILE*)0");
 
-    // use the io/Tokenizer class to parse the input ascii file
+        // use the io/Tokenizer class to parse the input ascii file
+        TokenizerFile tkn(fp);
 
-    TokenizerFile tkn(fp);
-    // first token should be "solid"
-    if(tkn.expecting("solid") && tkn.get()) {
-      string stlName = tkn; // second token should be the solid name
+        // first token should be "solid"
+        if(tkn.expecting("solid") && tkn.get()) {
+            string stlName = tkn; // second token should be the solid name
 
-      // TODO ...
+            // create the scene graph structure :
+            // 1) the SceneGraph should have a single Shape node a child
+            Shape* shape = new Shape();
+            wrl.addChild(shape);
 
-      // create the scene graph structure :
-      // 1) the SceneGraph should have a single Shape node a child
-      // 2) the Shape node should have an Appearance node in its appearance field
-      // 3) the Appearance node should have a Material node in its material field
-      // 4) the Shape node should have an IndexedFaceSet node in its geometry node
+            // 2) the Shape node should have an Appearance node in its appearance field
+            Appearance* app = new Appearance();
+            shape->setAppearance(app);
 
-      // from the IndexedFaceSet
-      // 5) get references to the coordIndex, coord, and normal arrays
-      // 6) set the normalPerVertex variable to false (i.e., normals per face)  
+            // 3) the Appearance node should have a Material node in its material field
+            app->setMaterial(new Material());
 
-      // the file should contain a list of triangles in the following format
+            // 4) the Shape node should have an IndexedFaceSet node in its geometry node
+            IndexedFaceSet* ifs = new IndexedFaceSet();
+            shape->setGeometry(ifs);
 
-      // facet normal ni nj nk
-      //   outer loop
-      //     vertex v1x v1y v1z
-      //     vertex v2x v2y v2z
-      //     vertex v3x v3y v3z
-      //   endloop
-      // endfacet
+            // from the IndexedFaceSet
+            // 5) get references to the coordIndex, coord, and normal arrays
+            vector<float>& coord = ifs->getCoord();
+            vector<int>& coordIndex = ifs->getCoordIndex();
+            vector<float>& normal = ifs->getNormal();
 
-      // - run an infinite loop to parse all the faces
-      // - write a private method to parse each face within the loop
-      // - the method should return true if successful, and false if not
-      // - if your method returns tru
-      //     update the normal, coord, and coordIndex variables
-      // - if your method returns false
-      //     throw an StrException explaining why the method failed
+            // 6) set the normalPerVertex variable to false (i.e., normals per face)
+            ifs->getNormalPerVertex() = false;
 
+            // - run an infinite loop to parse all the faces
+            while(tkn.get()) {
+                string token = tkn;
+                if (token == "endsolid") {
+                    success = true;
+                    break;
+                }
+
+                if (token == "facet") {
+                    // call the private method
+                    if (!_loadFace(tkn, coord, normal, coordIndex)) {
+                        throw new StrException("Error parsing facet data.");
+                    }
+                }
+            }
+        }
+
+        fclose(fp);
+
+    } catch(StrException* e) {
+        if(fp!=(FILE*)0) fclose(fp);
+        fprintf(stderr,"ERROR | %s\n",e->what());
+        delete e;
     }
 
-    // close the file (this statement may not be reached)
-    fclose(fp);
-    
-  } catch(StrException* e) { 
-    
-    if(fp!=(FILE*)0) fclose(fp);
-    fprintf(stderr,"ERROR | %s\n",e->what());
-    delete e;
-
-  }
-
-  return success;
+    return success;
 }
 
+// Fixed: The function signature now matches the HPP and handles tokens correctly
+bool LoaderStl::_loadFace(TokenizerFile& tkn, vector<float>& coord, vector<float>& normal, vector<int>& coordIndex) {
+
+    // 1. facet normal ni nj nk
+    if (!tkn.expecting("normal")) return false;
+    for (int i = 0; i < 3; ++i) {
+        if (!tkn.get()) return false;
+        // CAST tkn to string to access value, then call .c_str()
+        normal.push_back((float)atof(((string)tkn).c_str()));
+    }
+
+    // 2. outer loop
+    // Note: expecting() usually consumes the token if it matches
+    if (!tkn.expecting("outer")) return false;
+    if (!tkn.expecting("loop")) return false;
+
+    // 3. vertex v1x v1y v1z ...
+    int startIndex = (int)coord.size() / 3;
+    for (int i = 0; i < 3; ++i) {
+        if (!tkn.expecting("vertex")) return false;
+        for (int j = 0; j < 3; ++j) {
+            if (!tkn.get()) return false;
+            coord.push_back((float)atof(((string)tkn).c_str()));
+        }
+        coordIndex.push_back(startIndex + i);
+    }
+    coordIndex.push_back(-1); // Facet delimiter
+
+    // 4. endloop and endfacet
+    if (!tkn.expecting("endloop")) return false;
+    if (!tkn.expecting("endfacet")) return false;
+
+    return true;
+}

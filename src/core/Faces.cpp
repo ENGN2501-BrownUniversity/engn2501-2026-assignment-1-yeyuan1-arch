@@ -36,48 +36,82 @@
 
 #include <math.h>
 #include "Faces.hpp"
-  
+
 Faces::Faces(const int nV, const vector<int>& coordIndex) {
-  // TODO
+    _nV = nV;
+    _coordIndex = coordIndex;
+
+    if (nV > 0 && _coordIndex.size() > 0) {
+        _faceStart.push_back(0);
+
+        for (int i = 0; i < (int)_coordIndex.size(); ++i) {
+            if (_coordIndex[i] == -1) {
+                if (i + 1 < (int)_coordIndex.size()) {
+                    _faceStart.push_back(i + 1); // store the first vertex index of face
+                }
+            } else {
+                if (_coordIndex[i] < 0 || _coordIndex[i] >= _nV) {
+                    _nV = _coordIndex[i] + 1;
+                }
+            }
+        }
+    }
 }
 
 int Faces::getNumberOfVertices() const {
-  // TODO
-  return 0;
+    return _nV;
 }
 
 int Faces::getNumberOfFaces() const {
-  // TODO
-  return 0;
+    return (int)_faceStart.size();
 }
 
 int Faces::getNumberOfCorners() const {
-  // TODO
-  return 0;
+    return (int)_coordIndex.size();
 }
 
 int Faces::getFaceSize(const int iF) const {
-  // TODO
-  return 0;
+    if (iF < 0 || iF >= (int)_faceStart.size()) return 0;
+
+    int start = _faceStart[iF];
+    int size = 0;
+    while (start + size < (int)_coordIndex.size() && _coordIndex[start + size] != -1) {
+        size++;
+    }
+    return size;
 }
 
 int Faces::getFaceFirstCorner(const int iF) const {
-  // TODO
-  return -1;
+    if (iF < 0 || iF >= (int)_faceStart.size()) return -1;
+    return _faceStart[iF];
 }
 
 int Faces::getFaceVertex(const int iF, const int j) const {
-  // TODO
-  return -1;
+    int start = getFaceFirstCorner(iF);
+    if (start == -1 || j < 0 || j >= getFaceSize(iF)) return -1;
+    return _coordIndex[start + j];
 }
 
 int Faces::getCornerFace(const int iC) const {
-  // TODO
-  return -1;
+    if (iC < 0 || iC >= (int)_coordIndex.size() || _coordIndex[iC] == -1) {
+        return -1;
+    }
+
+    for (int i = 0; i < (int)_faceStart.size(); ++i) {
+        int start = _faceStart[i];
+        int nextStart = (i + 1 < (int)_faceStart.size()) ? _faceStart[i + 1] : (int)_coordIndex.size();
+
+        if (iC >= start && iC < nextStart - 1) {
+            return i;
+        }
+    }
+    return -1;
 }
 
 int Faces::getNextCorner(const int iC) const {
-  // TODO
-  return -1;
+    if (iC < 0 || iC >= (int)_coordIndex.size() || _coordIndex[iC] == -1) return -1;
+    if (iC + 1 >= (int)_coordIndex.size() || _coordIndex[iC + 1] == -1) {
+        return getFaceFirstCorner(getCornerFace(iC));
+    }
+    return iC + 1;
 }
-
